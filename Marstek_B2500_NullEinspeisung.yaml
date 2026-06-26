@@ -5,7 +5,7 @@ blueprint:
     
     Der Ausgang wird anhand des Hausverbrauchs dynamisch angepasst.
 
-    ### Version: 0.5 ###
+    ### Version: 0.6 ###
   domain: automation
   input:
 
@@ -38,7 +38,7 @@ blueprint:
           description: Wähle deinen Marstek B2500 Speicher aus
           selector:
             device:
-              integration: hame_energy
+              manufacturer: HAME Energy
 
     schwellwerte:
       name: ⚙️ Schwellwerte & Leistung
