@@ -5,7 +5,7 @@ blueprint:
     
     Der Ausgang wird anhand des Hausverbrauchs dynamisch angepasst.
 
-    ### Version: 0.6 ###
+    ### Version: 0.7 ###
   domain: automation
   input:
 
@@ -184,17 +184,12 @@ triggers:
 
   - trigger: template
     value_template: >-
-      {{
-        (device_entities(device_id)
-          | select('search', 'battery_percentage')
-          | list | first | default('')) != ''
-        and
-        states(
-          device_entities(device_id)
-            | select('search', 'battery_percentage')
-            | list | first
-        ) | float(100) < lowbat_threshold
-      }}
+      {% set dev = device_id %}
+      {% set bat = device_entities(dev)
+           | select('search', 'battery_percentage')
+           | list | first | default('') %}
+      {% set thr = lowbat_threshold %}
+      {{ bat != '' and states(bat) | float(100) < thr }}
     id: LowBat
 
 variables:
@@ -213,7 +208,7 @@ variables:
   var_threshold_max_skip: !input threshold_max_skip
   var_threshold_mode_skip: !input threshold_mode_skip
 
-  # Entitäten aus Device ableiten
+  # Entitäten automatisch aus Device ableiten
   var_battery_percentage: >-
     {{ device_entities(var_device_id)
        | select('search', 'battery_percentage')
@@ -254,12 +249,7 @@ conditions:
           - alias: Gerät ist nicht unknown
             condition: template
             value_template: >-
-              {{ states(var_battery_capacity) != 'unknown' }}
-
-          - alias: Gerät ist nicht unavailable
-            condition: template
-            value_template: >-
-              {{ states(var_battery_capacity) != 'unavailable' }}
+              {{ states(var_battery_capacity) not in ['unknown', 'unavailable', ''] }}
 
           - alias: "Nicht: Max gesetzt und Bedarf nur geringfügig höher"
             condition: template
@@ -268,8 +258,8 @@ conditions:
                 not (
                   states(var_output_value) | float(0) > 799
                   and
-                  (states(var_output_value) | float(0) * (1 + var_threshold_max_skip / 100))
-                  <= states(var_sensor_min) | float(0)
+                  states(var_sensor_min) | float(0)
+                  <= (states(var_output_value) | float(0) * (1 + var_threshold_max_skip / 100))
                 )
               }}
 
@@ -301,7 +291,7 @@ conditions:
                     value_template: >-
                       {{
                         state_attr(this.entity_id, 'last_triggered') == None or
-                        (as_timestamp(now()) - as_timestamp(state_attr(this.entity_id, 'last_triggered')) | int(0))
+                        (as_timestamp(now()) - as_timestamp(state_attr(this.entity_id, 'last_triggered'))) | int(0)
                         > var_cooldown_increase
                       }}
 
@@ -318,7 +308,7 @@ conditions:
                     value_template: >-
                       {{
                         state_attr(this.entity_id, 'last_triggered') == None or
-                        (as_timestamp(now()) - as_timestamp(state_attr(this.entity_id, 'last_triggered')) | int(0))
+                        (as_timestamp(now()) - as_timestamp(state_attr(this.entity_id, 'last_triggered'))) | int(0)
                         > var_cooldown_decrease
                       }}
 
@@ -369,7 +359,7 @@ actions:
           - alias: Gewichteten Wert einstellen
             action: number.set_value
             data:
-              value: "{{ var_gewichteter_wert }}"
+              value: "{{ var_gewichteter_wert | round(0) }}"
             target:
               entity_id: "{{ var_output_value }}"
           - alias: Switch und Modus korrigieren falls nötig
