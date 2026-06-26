@@ -5,7 +5,7 @@ blueprint:
     
     Der Ausgang wird anhand des Hausverbrauchs dynamisch angepasst.
 
-    ### Version: 0.4 ###
+    ### Version: 0.5 ###
   domain: automation
   input:
 
@@ -29,44 +29,16 @@ blueprint:
               domain: sensor
 
     speicher:
-      name: 🔋 Speicher Entitäten
+      name: 🔋 Marstek Speicher
       icon: mdi:battery
       collapsed: false
       input:
-        battery_percentage:
-          name: Batterie Ladestand (%)
-          description: Sensor für den aktuellen Ladestand in Prozent
+        device_id:
+          name: Marstek Gerät
+          description: Wähle deinen Marstek B2500 Speicher aus
           selector:
-            entity:
-              domain: sensor
-
-        battery_capacity:
-          name: Batterie Kapazität
-          description: Sensor für die verfügbare Kapazität (wird auf unknown/unavailable geprüft)
-          selector:
-            entity:
-              domain: sensor
-
-        output_value:
-          name: Ausgangsleistung (number)
-          description: Einstellbare Ausgangsleistung des Speichers
-          selector:
-            entity:
-              domain: number
-
-        time_period_enabled:
-          name: Zeitraum aktiviert (switch)
-          description: Schalter für den aktiven Zeitraum
-          selector:
-            entity:
-              domain: switch
-
-        charging_mode:
-          name: Lademodus (select)
-          description: Auswahl des Lademodus
-          selector:
-            entity:
-              domain: select
+            device:
+              integration: hame_energy
 
     schwellwerte:
       name: ⚙️ Schwellwerte & Leistung
@@ -210,18 +182,25 @@ triggers:
     entity_id: !input sensor_min
     id: Energy
 
-  - trigger: numeric_state
-    entity_id: !input battery_percentage
-    below: !input lowbat_threshold
+  - trigger: template
+    value_template: >-
+      {{
+        (device_entities(device_id)
+          | select('search', 'battery_percentage')
+          | list | first | default('')) != ''
+        and
+        states(
+          device_entities(device_id)
+            | select('search', 'battery_percentage')
+            | list | first
+        ) | float(100) < lowbat_threshold
+      }}
     id: LowBat
 
 variables:
+  var_device_id: !input device_id
   var_sensor_min: !input sensor_min
   var_sensor_avg: !input sensor_avg
-  var_battery_percentage: !input battery_percentage
-  var_battery_capacity: !input battery_capacity
-  var_output_value: !input output_value
-  var_charging_mode: !input charging_mode
   var_lowbat_threshold: !input lowbat_threshold
   var_lowbat_output: !input lowbat_output
   var_min_power: !input min_power
@@ -233,6 +212,29 @@ variables:
   var_threshold_decrease: !input threshold_decrease
   var_threshold_max_skip: !input threshold_max_skip
   var_threshold_mode_skip: !input threshold_mode_skip
+
+  # Entitäten aus Device ableiten
+  var_battery_percentage: >-
+    {{ device_entities(var_device_id)
+       | select('search', 'battery_percentage')
+       | list | first | default('') }}
+  var_battery_capacity: >-
+    {{ device_entities(var_device_id)
+       | select('search', 'battery_capacity')
+       | list | first | default('') }}
+  var_output_value: >-
+    {{ device_entities(var_device_id)
+       | select('search', 'time_period_1_output_value')
+       | list | first | default('') }}
+  var_time_period_enabled: >-
+    {{ device_entities(var_device_id)
+       | select('search', 'time_period_1_enabled')
+       | list | first | default('') }}
+  var_charging_mode: >-
+    {{ device_entities(var_device_id)
+       | select('search', 'charging_mode')
+       | list | first | default('') }}
+
   var_gewichteter_wert: >-
     {{ (
       (states(var_sensor_min) | float(0) * 2) +
@@ -250,48 +252,38 @@ conditions:
             id: Energy
 
           - alias: Gerät ist nicht unknown
-            condition: not
-            conditions:
-              - condition: state
-                entity_id: !input battery_capacity
-                state: unknown
+            condition: template
+            value_template: >-
+              {{ states(var_battery_capacity) != 'unknown' }}
 
           - alias: Gerät ist nicht unavailable
-            condition: not
-            conditions:
-              - condition: state
-                entity_id: !input battery_capacity
-                state: unavailable
+            condition: template
+            value_template: >-
+              {{ states(var_battery_capacity) != 'unavailable' }}
 
           - alias: "Nicht: Max gesetzt und Bedarf nur geringfügig höher"
-            condition: not
-            conditions:
-              - condition: and
-                conditions:
-                  - condition: numeric_state
-                    entity_id: !input output_value
-                    above: 799
-                  - condition: template
-                    value_template: >-
-                      {{
-                        (states(var_output_value) | float(0) * (1 + var_threshold_max_skip / 100))
-                        <= states(var_sensor_min) | float(0)
-                      }}
+            condition: template
+            value_template: >-
+              {{
+                not (
+                  states(var_output_value) | float(0) > 799
+                  and
+                  (states(var_output_value) | float(0) * (1 + var_threshold_max_skip / 100))
+                  <= states(var_sensor_min) | float(0)
+                )
+              }}
 
           - alias: "Nicht: Fully Charge Modus und Bedarf geringfügig kleiner"
-            condition: not
-            conditions:
-              - condition: and
-                conditions:
-                  - condition: state
-                    entity_id: !input charging_mode
-                    state: Fully Charge Then Discharge
-                  - condition: template
-                    value_template: >-
-                      {{
-                        states(var_output_value) | float(0)
-                        >= (states(var_sensor_min) | float(0) * (1 + var_threshold_mode_skip / 100))
-                      }}
+            condition: template
+            value_template: >-
+              {{
+                not (
+                  states(var_charging_mode) == 'Fully Charge Then Discharge'
+                  and
+                  states(var_output_value) | float(0)
+                  >= (states(var_sensor_min) | float(0) * (1 + var_threshold_mode_skip / 100))
+                )
+              }}
 
           - alias: Ist & Bedarfswerte vergleichen
             condition: or
@@ -331,16 +323,15 @@ conditions:
                       }}
 
           - alias: Nicht Fully Charge Modus mit Batterie unter Schwelle
-            condition: not
-            conditions:
-              - condition: and
-                conditions:
-                  - condition: state
-                    entity_id: !input charging_mode
-                    state: Fully Charge Then Discharge
-                  - condition: numeric_state
-                    entity_id: !input battery_percentage
-                    below: !input lowbat_recharge_threshold
+            condition: template
+            value_template: >-
+              {{
+                not (
+                  states(var_charging_mode) == 'Fully Charge Then Discharge'
+                  and
+                  states(var_battery_percentage) | float(100) < var_lowbat_recharge_threshold
+                )
+              }}
 
       - alias: LowBat direkt durch
         condition: trigger
@@ -358,15 +349,15 @@ actions:
             data:
               option: Fully Charge Then Discharge
             target:
-              entity_id: !input charging_mode
+              entity_id: "{{ var_charging_mode }}"
           - action: number.set_value
             data:
               value: "{{ var_lowbat_output }}"
             target:
-              entity_id: !input output_value
+              entity_id: "{{ var_output_value }}"
           - action: switch.turn_off
             target:
-              entity_id: !input time_period_enabled
+              entity_id: "{{ var_time_period_enabled }}"
           - stop: Akku erschöpft
 
       - alias: Normalbetrieb – Gewichteter Wert zwischen Min und Max
@@ -380,79 +371,71 @@ actions:
             data:
               value: "{{ var_gewichteter_wert }}"
             target:
-              entity_id: !input output_value
+              entity_id: "{{ var_output_value }}"
           - alias: Switch und Modus korrigieren falls nötig
             if:
-              - condition: or
-                conditions:
-                  - condition: state
-                    entity_id: !input time_period_enabled
-                    state: "off"
-                  - condition: state
-                    entity_id: !input charging_mode
-                    state: Fully Charge Then Discharge
+              - condition: template
+                value_template: >-
+                  {{
+                    states(var_time_period_enabled) == 'off'
+                    or states(var_charging_mode) == 'Fully Charge Then Discharge'
+                  }}
             then:
               - action: switch.turn_on
                 target:
-                  entity_id: !input time_period_enabled
+                  entity_id: "{{ var_time_period_enabled }}"
               - action: select.select_option
                 data:
                   option: Simultaneous Charging/Discharging
                 target:
-                  entity_id: !input charging_mode
+                  entity_id: "{{ var_charging_mode }}"
 
       - alias: Unter Minimum – Minimalwert setzen
         conditions:
           - condition: template
             value_template: >-
               {{ var_gewichteter_wert <= var_min_power }}
-          - condition: not
-            conditions:
-              - condition: state
-                entity_id: !input charging_mode
-                state: Fully Charge Then Discharge
+          - condition: template
+            value_template: >-
+              {{ states(var_charging_mode) != 'Fully Charge Then Discharge' }}
         sequence:
           - action: number.set_value
             data:
               value: "{{ var_min_power }}"
             target:
-              entity_id: !input output_value
+              entity_id: "{{ var_output_value }}"
 
       - alias: Über Maximum – Maximalwert setzen
         conditions:
           - condition: template
             value_template: >-
               {{ var_gewichteter_wert >= var_max_power }}
-          - condition: not
-            conditions:
-              - condition: numeric_state
-                entity_id: !input output_value
-                above: 799
+          - condition: template
+            value_template: >-
+              {{ states(var_output_value) | float(0) <= 799 }}
         sequence:
           - action: number.set_value
             data:
               value: "{{ var_max_power }}"
             target:
-              entity_id: !input output_value
+              entity_id: "{{ var_output_value }}"
           - alias: Switch und Modus korrigieren falls nötig
             if:
-              - condition: or
-                conditions:
-                  - condition: state
-                    entity_id: !input time_period_enabled
-                    state: "off"
-                  - condition: state
-                    entity_id: !input charging_mode
-                    state: Fully Charge Then Discharge
+              - condition: template
+                value_template: >-
+                  {{
+                    states(var_time_period_enabled) == 'off'
+                    or states(var_charging_mode) == 'Fully Charge Then Discharge'
+                  }}
             then:
               - action: switch.turn_on
                 target:
-                  entity_id: !input time_period_enabled
+                  entity_id: "{{ var_time_period_enabled }}"
               - action: select.select_option
                 data:
                   option: Simultaneous Charging/Discharging
                 target:
-                  entity_id: !input charging_mode
+                  entity_id: "{{ var_charging_mode }}"
 
 mode: single
 max_exceeded: silent
