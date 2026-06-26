@@ -3,424 +3,225 @@ blueprint:
   description: >-
     Steuert den Marstek B2500 Speicher für eine möglichst genaue Nulleinspeisung.
     Der Ausgang wird anhand des Hausverbrauchs dynamisch angepasst.
-    ### Version: 0.2
+    ### Version: 0.3 ###
   domain: automation
   input:
-    # ─── Sensoren ───────────────────────────────────────────────────────────────
-    sensor_min:
-      name: Hausverbrauch Sensor (Min 5min)
-      description: Sensor für den minimalen Hausverbrauch der letzten 5 Minuten
-      selector:
-        entity:
-          domain: sensor
-    sensor_avg:
-      name: Hausverbrauch Sensor (Durchschnitt 5min)
-      description: Sensor für den durchschnittlichen Hausverbrauch der letzten 5 Minuten
-      selector:
-        entity:
-          domain: sensor
 
-    # ─── Gerät-Entitäten ────────────────────────────────────────────────────────
-    battery_percentage:
-      name: Batterie Ladestand (%)
-      description: Sensor für den Ladestand des Speichers
-      selector:
-        entity:
-          domain: sensor
-    battery_capacity:
-      name: Batterie Kapazität
-      description: Sensor für die Kapazität des Speichers (wird für Verfügbarkeitsprüfung genutzt)
-      selector:
-        entity:
-          domain: sensor
-    output_value:
-      name: Ausgangsleistung (number)
-      description: Einstellbare Ausgangsleistung des Speichers (time_period_1_output_value)
-      selector:
-        entity:
-          domain: number
-    time_period_enabled:
-      name: Zeitraum aktiviert (switch)
-      description: Schalter für den aktivierten Zeitraum des Speichers
-      selector:
-        entity:
-          domain: switch
-    charging_mode:
-      name: Lademodus (select)
-      description: Auswahl des Lademodus des Speichers
-      selector:
-        entity:
-          domain: select
+    sensoren:
+      name: Sensoren
+      icon: mdi:chart-line
+      collapsed: false
+      input:
+        sensor_min:
+          name: Hausverbrauch Sensor (Min 5min)
+          description: Minimaler Hausverbrauch der letzten 5 Minuten
+          selector:
+            entity:
+              domain: sensor
+        sensor_avg:
+          name: Hausverbrauch Sensor (Durchschnitt 5min)
+          description: Durchschnittlicher Hausverbrauch der letzten 5 Minuten
+          selector:
+            entity:
+              domain: sensor
 
-    # ─── Lademodi ───────────────────────────────────────────────────────────────
-    mode_lowbat:
-      name: LowBat Lademodus
-      description: Lademodus wenn der Akku leer ist
-      default: "Fully Charge Then Discharge"
-      selector:
-        select:
-          options:
-            - "Fully Charge Then Discharge"
-            - "Simultaneous Charging/Discharging"
-    mode_normal:
-      name: Normal Lademodus
-      description: Lademodus im Normalbetrieb
-      default: "Simultaneous Charging/Discharging"
-      selector:
-        select:
-          options:
-            - "Fully Charge Then Discharge"
-            - "Simultaneous Charging/Discharging"
+    speicher:
+      name: Speicher Entitäten
+      icon: mdi:battery
+      collapsed: false
+      input:
+        battery_percentage:
+          name: Batterie Ladestand (%)
+          description: Sensor für den aktuellen Ladestand
+          selector:
+            entity:
+              domain: sensor
+        battery_capacity:
+          name: Batterie Kapazität
+          description: Sensor für die verfügbare Kapazität
+          selector:
+            entity:
+              domain: sensor
+        output_value:
+          name: Ausgangsleistung
+          description: Einstellbare Ausgangsleistung des Speichers
+          selector:
+            entity:
+              domain: number
+        time_period_enabled:
+          name: Zeitraum aktiviert
+          description: Schalter für den aktiven Zeitraum
+          selector:
+            entity:
+              domain: switch
+        charging_mode:
+          name: Lademodus
+          description: Auswahl des Lademodus
+          selector:
+            entity:
+              domain: select
 
-    # ─── Schwellwerte ────────────────────────────────────────────────────────────
-    lowbat_threshold:
-      name: LowBat Schwelle (%)
-      description: Unter diesem Ladestand wird der LowBat-Modus aktiviert
-      default: 11
-      selector:
-        number:
-          min: 1
-          max: 50
-          unit_of_measurement: "%"
-    lowbat_fallback_power:
-      name: LowBat Fallback Leistung (W)
-      description: Ausgangsleistung im LowBat-Modus
-      default: 50
-      selector:
-        number:
-          min: 30
-          max: 800
-          unit_of_measurement: "W"
-    lowbat_no_action_threshold:
-      name: LowBat Keine-Aktion Schwelle (%)
-      description: >-
-        Unter diesem Ladestand wird keine Aktion ausgeführt,
-        wenn der LowBat Lademodus bereits aktiv ist
-      default: 15
-      selector:
-        number:
-          min: 1
-          max: 50
-          unit_of_measurement: "%"
-    min_power:
-      name: Minimale Ausgangsleistung (W)
-      default: 30
-      selector:
-        number:
-          min: 1
-          max: 800
-          unit_of_measurement: "W"
-    max_power:
-      name: Maximale Ausgangsleistung (W)
-      default: 800
-      selector:
-        number:
-          min: 30
-          max: 800
-          unit_of_measurement: "W"
+    lademodi:
+      name: Lademodi
+      icon: mdi:lightning-bolt
+      collapsed: true
+      input:
+        mode_lowbat:
+          name: LowBat Lademodus
+          description: Lademodus wenn der Akku leer ist
+          default: "Fully Charge Then Discharge"
+          selector:
+            select:
+              options:
+                - "Fully Charge Then Discharge"
+                - "Simultaneous Charging/Discharging"
+        mode_normal:
+          name: Normal Lademodus
+          description: Lademodus im Normalbetrieb
+          default: "Simultaneous Charging/Discharging"
+          selector:
+            select:
+              options:
+                - "Fully Charge Then Discharge"
+                - "Simultaneous Charging/Discharging"
 
-    # ─── Toleranzen ──────────────────────────────────────────────────────────────
-    tolerance_increase:
-      name: Toleranz Erhöhung (%)
-      description: >-
-        Mehr Energie wird erst angefordert wenn der Bedarf um diesen
-        Prozentsatz über dem aktuellen Wert liegt
-      default: 10
-      selector:
-        number:
-          min: 1
-          max: 50
-          unit_of_measurement: "%"
-    tolerance_decrease:
-      name: Toleranz Reduzierung (%)
-      description: >-
-        Weniger Energie wird erst angefordert wenn der aktuelle Wert um
-        diesen Prozentsatz über dem Bedarf liegt
-      default: 2
-      selector:
-        number:
-          min: 1
-          max: 50
-          unit_of_measurement: "%"
-    tolerance_max_no_action:
-      name: Toleranz Max keine Aktion (%)
-      description: >-
-        Keine Aktion wenn Max gesetzt ist und der Bedarf nur um diesen
-        Prozentsatz größer ist
-      default: 10
-      selector:
-        number:
-          min: 1
-          max: 50
-          unit_of_measurement: "%"
-    tolerance_lowbat_mode:
-      name: Toleranz LowBat Modus (%)
-      description: >-
-        Keine Reduzierung wenn LowBat Lademodus aktiv und der Wert nur
-        um diesen Prozentsatz über dem Bedarf liegt
-      default: 4
-      selector:
-        number:
-          min: 1
-          max: 50
-          unit_of_measurement: "%"
+    schwellwerte:
+      name: Schwellwerte & Grenzen
+      icon: mdi:tune
+      collapsed: true
+      input:
+        min_power:
+          name: Minimale Ausgangsleistung (W)
+          description: Untergrenze der Ausgangsleistung
+          default: 50
+          selector:
+            number:
+              min: 0
+              max: 800
+              unit_of_measurement: W
+              mode: slider
+        max_power:
+          name: Maximale Ausgangsleistung (W)
+          description: Obergrenze der Ausgangsleistung
+          default: 800
+          selector:
+            number:
+              min: 0
+              max: 800
+              unit_of_measurement: W
+              mode: slider
+        lowbat_threshold:
+          name: LowBat Schwellwert (%)
+          description: Ladestand ab dem LowBat Modus aktiv wird
+          default: 10
+          selector:
+            number:
+              min: 0
+              max: 100
+              unit_of_measurement: "%"
+              mode: slider
 
-    # ─── Cooldowns ───────────────────────────────────────────────────────────────
-    cooldown_increase:
-      name: Cooldown Erhöhung (Sekunden)
-      description: Mindestzeit zwischen zwei Erhöhungen der Ausgangsleistung
-      default: 180
-      selector:
-        number:
-          min: 10
-          max: 600
-          unit_of_measurement: "s"
-    cooldown_decrease:
-      name: Cooldown Reduzierung (Sekunden)
-      description: Mindestzeit zwischen zwei Reduzierungen der Ausgangsleistung
-      default: 15
-      selector:
-        number:
-          min: 5
-          max: 300
-          unit_of_measurement: "s"
+    erweitert:
+      name: Erweiterte Einstellungen
+      icon: mdi:cog
+      collapsed: true
+      input:
+        update_interval:
+          name: Update Intervall (Sekunden)
+          description: Wie oft die Automation ausgeführt wird
+          default: 30
+          selector:
+            number:
+              min: 10
+              max: 300
+              unit_of_measurement: s
+              mode: slider
 
-triggers:
-  - entity_id: !input sensor_min
-    trigger: state
-    id: Energy
-  - trigger: numeric_state
-    entity_id: !input battery_percentage
-    below: !input lowbat_threshold
-    alias: LowBat
-    id: LowBat
+variables:
+  var_sensor_min: !input sensor_min
+  var_sensor_avg: !input sensor_avg
+  var_battery_percentage: !input battery_percentage
+  var_output_value: !input output_value
+  var_time_period_enabled: !input time_period_enabled
+  var_charging_mode: !input charging_mode
+  var_mode_lowbat: !input mode_lowbat
+  var_mode_normal: !input mode_normal
+  var_min_power: !input min_power
+  var_max_power: !input max_power
+  var_lowbat_threshold: !input lowbat_threshold
+  var_gewichteter_wert: >-
+    {{ ((states(var_sensor_min) | float(0) * 2)
+    + (states(var_sensor_avg) | float(0))) / 3 }}
 
-conditions:
-  - condition: or
-    conditions:
-      - alias: Energie-Bedingungen
-        condition: and
-        conditions:
-          - condition: trigger
-            id:
-              - Energy
-          - condition: not
-            conditions:
-              - condition: state
-                entity_id: !input battery_capacity
-                state: unknown
-            alias: Gerät ist nicht "unbekannt"
-          - condition: not
-            conditions:
-              - condition: state
-                entity_id: !input battery_capacity
-                state: unavailable
-            alias: Gerät ist nicht "nicht verfügbar"
-          - alias: "Nicht: Max ist bereits gesetzt und es würde mehr benötigt werden"
-            condition: not
-            conditions:
-              - condition: and
-                conditions:
-                  - alias: Max Watt gesetzt
-                    condition: numeric_state
-                    entity_id: !input output_value
-                    above: !input max_power
-                  - alias: Bedarf ist um Toleranz größer
-                    condition: template
-                    value_template: >-
-                      {{(float(states('!input output_value')) * (1 + float('!input tolerance_max_no_action') / 100))
-                      <= float(states('!input sensor_min'))}}
-          - alias: "Nicht: Speicherprio ist gesetzt und es würde weniger benötigt werden"
-            condition: not
-            conditions:
-              - condition: and
-                conditions:
-                  - condition: state
-                    entity_id: !input charging_mode
-                    state: !input mode_lowbat
-                  - alias: Wert ist um Toleranz größer als Bedarf
-                    condition: template
-                    value_template: >-
-                      {{float(states('!input output_value'))
-                      >= (float(states('!input sensor_min')) * (1 + float('!input tolerance_lowbat_mode') / 100))}}
-          - alias: Ist & Bedarfs-Werte vergleichen (oder)
-            condition: or
-            conditions:
-              - condition: and
-                conditions:
-                  - alias: Cooldown Erhöhung
-                    condition: template
-                    value_template: >-
-                      {% set auto_id = this.entity_id %}
-                      {{ state_attr(auto_id, "last_triggered") == None or
-                      (as_timestamp(now()) - as_timestamp(state_attr(auto_id, "last_triggered")) | int(0))
-                      > float('!input cooldown_increase') }}
-                  - alias: Bedarf ist um Toleranz größer
-                    condition: template
-                    value_template: >-
-                      {{(float(states('!input output_value')) * (1 + float('!input tolerance_increase') / 100))
-                      <= float(states('!input sensor_min'))}}
-                alias: Mehr Energie wird benötigt & Cooldown abgelaufen
-              - alias: Weniger Energie wird benötigt & Cooldown abgelaufen
-                condition: and
-                conditions:
-                  - alias: Wert ist um Toleranz größer als Bedarf
-                    condition: template
-                    value_template: >-
-                      {{float(states('!input output_value'))
-                      >= (float(states('!input sensor_min')) * (1 + float('!input tolerance_decrease') / 100))}}
-                  - alias: Cooldown Reduzierung
-                    condition: template
-                    value_template: >-
-                      {% set auto_id = this.entity_id %}
-                      {{ state_attr(auto_id, "last_triggered") == None or
-                      (as_timestamp(now()) - as_timestamp(state_attr(auto_id, "last_triggered")) | int(0))
-                      > float('!input cooldown_decrease') }}
-          - condition: not
-            conditions:
-              - condition: and
-                conditions:
-                  - condition: state
-                    entity_id: !input charging_mode
-                    state: !input mode_lowbat
-                  - condition: numeric_state
-                    entity_id: !input battery_percentage
-                    below: !input lowbat_no_action_threshold
-      - condition: trigger
-        id:
-          - LowBat
-        alias: LowBat
+trigger:
+  - platform: time_pattern
+    seconds: !input update_interval
 
-actions:
+condition:
+  - condition: template
+    value_template: >-
+      {{ states(var_battery_percentage) not in ['unavailable', 'unknown'] }}
+
+action:
   - choose:
+
+      # ─── LowBat Modus ───────────────────────────────────────────────────────
       - conditions:
-          - condition: trigger
-            id:
-              - LowBat
+          - condition: template
+            value_template: >-
+              {{ states(var_battery_percentage) | float(0) <= var_lowbat_threshold }}
+          - condition: template
+            value_template: >-
+              {{ states(var_charging_mode) != var_mode_lowbat }}
         sequence:
-          - action: select.select_option
+          - alias: LowBat Modus aktivieren
+            action: select.select_option
             data:
-              option: !input mode_lowbat
+              option: "{{ var_mode_lowbat }}"
             target:
               entity_id: !input charging_mode
-          - action: number.set_value
+          - alias: Minimale Leistung setzen
+            action: number.set_value
             data:
-              value: !input lowbat_fallback_power
+              value: "{{ var_min_power }}"
             target:
               entity_id: !input output_value
-          - action: switch.turn_off
-            data: {}
-            target:
-              entity_id: !input time_period_enabled
-          - stop: Akku erschöpft
-        alias: Wenn LowBat dann Energiemodus umstellen
 
+      # ─── Normalbetrieb ──────────────────────────────────────────────────────
       - conditions:
-          - condition: numeric_state
-            entity_id: !input sensor_min
-            above: !input min_power
+          - condition: template
             value_template: >-
-              {{((float(states('!input sensor_min')) * 2)
-              + float(states('!input sensor_avg'))) / 3}}
-          - condition: numeric_state
-            entity_id: !input sensor_min
-            value_template: >-
-              {{((float(states('!input sensor_min')) * 2)
-              + float(states('!input sensor_avg'))) / 3}}
-            below: !input max_power
+              {{ states(var_battery_percentage) | float(0) > var_lowbat_threshold }}
         sequence:
-          - alias: Vermittelten Wert aus Min (doppelt gewichtet) & Durchschnitt einstellen
+          - alias: Normalen Lademodus sicherstellen
+            if:
+              - condition: template
+                value_template: >-
+                  {{ states(var_charging_mode) != var_mode_normal }}
+            then:
+              - action: select.select_option
+                data:
+                  option: "{{ var_mode_normal }}"
+                target:
+                  entity_id: !input charging_mode
+
+          - alias: Zeitraum aktivieren falls nötig
+            if:
+              - condition: state
+                entity_id: !input time_period_enabled
+                state: "off"
+            then:
+              - action: switch.turn_on
+                target:
+                  entity_id: !input time_period_enabled
+
+          - alias: Ausgangsleistung berechnen und setzen
+            action: number.set_value
             data:
               value: >-
-                {{((float(states('!input sensor_min')) * 2)
-                + float(states('!input sensor_avg'))) / 3}}
-            action: number.set_value
+                {{ [[var_gewichteter_wert, var_min_power] | max, var_max_power] | min }}
             target:
               entity_id: !input output_value
-          - if:
-              - condition: or
-                conditions:
-                  - condition: state
-                    entity_id: !input time_period_enabled
-                    state: "off"
-                  - condition: state
-                    entity_id: !input charging_mode
-                    state: !input mode_lowbat
-            then:
-              - action: switch.turn_on
-                data: {}
-                target:
-                  entity_id: !input time_period_enabled
-              - action: select.select_option
-                data:
-                  option: !input mode_normal
-                target:
-                  entity_id: !input charging_mode
-            alias: Wenn Deaktiviert, wieder aktivieren
-
-      - conditions:
-          - condition: numeric_state
-            entity_id: !input sensor_min
-            value_template: >-
-              {{((float(states('!input sensor_min')) * 2)
-              + float(states('!input sensor_avg'))) / 3}}
-            below: !input min_power
-          - condition: not
-            conditions:
-              - condition: state
-                entity_id: !input charging_mode
-                state: !input mode_lowbat
-        sequence:
-          - alias: Minimale Leistung setzen
-            data:
-              value: !input min_power
-            action: number.set_value
-            target:
-              entity_id: !input output_value
-        alias: Set Min Watt if not Set
-
-      - conditions:
-          - condition: numeric_state
-            entity_id: !input sensor_min
-            value_template: >-
-              {{((float(states('!input sensor_min')) * 2)
-              + float(states('!input sensor_avg'))) / 3}}
-            above: !input max_power
-          - condition: not
-            conditions:
-              - condition: numeric_state
-                entity_id: !input output_value
-                above: !input max_power
-        sequence:
-          - data:
-              value: !input max_power
-            action: number.set_value
-            target:
-              entity_id: !input output_value
-          - if:
-              - condition: or
-                conditions:
-                  - condition: state
-                    entity_id: !input time_period_enabled
-                    state: "off"
-                  - condition: state
-                    entity_id: !input charging_mode
-                    state: !input mode_lowbat
-            then:
-              - action: switch.turn_on
-                data: {}
-                target:
-                  entity_id: !input time_period_enabled
-              - action: select.select_option
-                data:
-                  option: !input mode_normal
-                target:
-                  entity_id: !input charging_mode
-            alias: Wenn Deaktiviert, wieder aktivieren
-        alias: Set Max Watt if not Set
-
-  - alias: Graveyard
-    choose: []
-    enabled: true
 
 mode: single
+max_exceeded: silent
