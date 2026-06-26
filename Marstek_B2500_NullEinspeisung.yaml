@@ -3,6 +3,7 @@ blueprint:
   description: >-
     Steuert den Marstek B2500 Speicher für eine möglichst genaue Nulleinspeisung.
     Der Ausgang wird anhand des Hausverbrauchs dynamisch angepasst.
+    ### Version: 0.2
   domain: automation
   input:
     # ─── Sensoren ───────────────────────────────────────────────────────────────
