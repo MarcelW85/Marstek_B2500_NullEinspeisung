@@ -2,226 +2,457 @@ blueprint:
   name: Marstek B2500 Nulleinspeisung
   description: >-
     Steuert den Marstek B2500 Speicher für eine möglichst genaue Nulleinspeisung.
+    
     Der Ausgang wird anhand des Hausverbrauchs dynamisch angepasst.
-    ### Version: 0.3 ###
+
+    ### Version: 0.4 ###
   domain: automation
   input:
 
     sensoren:
-      name: Sensoren
+      name: 📊 Sensoren
       icon: mdi:chart-line
       collapsed: false
       input:
         sensor_min:
-          name: Hausverbrauch Sensor (Min 5min)
+          name: Hausverbrauch – Minimum 5min
           description: Minimaler Hausverbrauch der letzten 5 Minuten
           selector:
             entity:
               domain: sensor
+
         sensor_avg:
-          name: Hausverbrauch Sensor (Durchschnitt 5min)
+          name: Hausverbrauch – Durchschnitt 5min
           description: Durchschnittlicher Hausverbrauch der letzten 5 Minuten
           selector:
             entity:
               domain: sensor
 
     speicher:
-      name: Speicher Entitäten
+      name: 🔋 Speicher Entitäten
       icon: mdi:battery
       collapsed: false
       input:
         battery_percentage:
           name: Batterie Ladestand (%)
-          description: Sensor für den aktuellen Ladestand
+          description: Sensor für den aktuellen Ladestand in Prozent
           selector:
             entity:
               domain: sensor
+
         battery_capacity:
           name: Batterie Kapazität
-          description: Sensor für die verfügbare Kapazität
+          description: Sensor für die verfügbare Kapazität (wird auf unknown/unavailable geprüft)
           selector:
             entity:
               domain: sensor
+
         output_value:
-          name: Ausgangsleistung
+          name: Ausgangsleistung (number)
           description: Einstellbare Ausgangsleistung des Speichers
           selector:
             entity:
               domain: number
+
         time_period_enabled:
-          name: Zeitraum aktiviert
+          name: Zeitraum aktiviert (switch)
           description: Schalter für den aktiven Zeitraum
           selector:
             entity:
               domain: switch
+
         charging_mode:
-          name: Lademodus
+          name: Lademodus (select)
           description: Auswahl des Lademodus
           selector:
             entity:
               domain: select
 
-    lademodi:
-      name: Lademodi
-      icon: mdi:lightning-bolt
-      collapsed: true
-      input:
-        mode_lowbat:
-          name: LowBat Lademodus
-          description: Lademodus wenn der Akku leer ist
-          default: "Fully Charge Then Discharge"
-          selector:
-            select:
-              options:
-                - "Fully Charge Then Discharge"
-                - "Simultaneous Charging/Discharging"
-        mode_normal:
-          name: Normal Lademodus
-          description: Lademodus im Normalbetrieb
-          default: "Simultaneous Charging/Discharging"
-          selector:
-            select:
-              options:
-                - "Fully Charge Then Discharge"
-                - "Simultaneous Charging/Discharging"
-
     schwellwerte:
-      name: Schwellwerte & Grenzen
+      name: ⚙️ Schwellwerte & Leistung
       icon: mdi:tune
       collapsed: true
       input:
-        min_power:
-          name: Minimale Ausgangsleistung (W)
-          description: Untergrenze der Ausgangsleistung
+        lowbat_threshold:
+          name: LowBat Schwellwert (%)
+          description: Unter diesem Ladestand wird LowBat aktiviert
+          default: 11
+          selector:
+            number:
+              min: 5
+              max: 30
+              step: 1
+              unit_of_measurement: "%"
+
+        lowbat_output:
+          name: LowBat Ausgangsleistung (W)
+          description: Ausgangsleistung wenn LowBat aktiv ist
           default: 50
           selector:
             number:
-              min: 0
-              max: 800
-              unit_of_measurement: W
-              mode: slider
-        max_power:
-          name: Maximale Ausgangsleistung (W)
-          description: Obergrenze der Ausgangsleistung
-          default: 800
-          selector:
-            number:
-              min: 0
-              max: 800
-              unit_of_measurement: W
-              mode: slider
-        lowbat_threshold:
-          name: LowBat Schwellwert (%)
-          description: Ladestand ab dem LowBat Modus aktiv wird
-          default: 10
-          selector:
-            number:
-              min: 0
-              max: 100
-              unit_of_measurement: "%"
-              mode: slider
+              min: 30
+              max: 200
+              step: 10
+              unit_of_measurement: "W"
 
-    erweitert:
-      name: Erweiterte Einstellungen
-      icon: mdi:cog
-      collapsed: true
-      input:
-        update_interval:
-          name: Update Intervall (Sekunden)
-          description: Wie oft die Automation ausgeführt wird
+        min_power:
+          name: Minimale Ausgangsleistung (W)
+          description: Unterhalb dieses Wertes wird dieser Minimalwert gesetzt
           default: 30
           selector:
             number:
               min: 10
-              max: 300
-              unit_of_measurement: s
-              mode: slider
+              max: 100
+              step: 5
+              unit_of_measurement: "W"
+
+        max_power:
+          name: Maximale Ausgangsleistung (W)
+          description: Oberhalb dieses Wertes wird dieser Maximalwert gesetzt
+          default: 800
+          selector:
+            number:
+              min: 100
+              max: 800
+              step: 10
+              unit_of_measurement: "W"
+
+    erweitert:
+      name: 🔧 Erweiterte Einstellungen
+      icon: mdi:cog
+      collapsed: true
+      input:
+        lowbat_recharge_threshold:
+          name: LowBat – Nicht steuern wenn Lademodus & unter (%)
+          description: >-
+            Wenn Lademodus "Fully Charge Then Discharge" aktiv ist und Batterie
+            unter diesem Wert liegt, wird die Automation nicht ausgeführt
+          default: 15
+          selector:
+            number:
+              min: 5
+              max: 50
+              step: 1
+              unit_of_measurement: "%"
+
+        cooldown_increase:
+          name: Wartezeit bei Erhöhung (Sekunden)
+          description: Mindestabstand zwischen zwei Erhöhungen der Ausgangsleistung
+          default: 180
+          selector:
+            number:
+              min: 30
+              max: 600
+              step: 10
+              unit_of_measurement: "s"
+
+        cooldown_decrease:
+          name: Wartezeit bei Reduzierung (Sekunden)
+          description: Mindestabstand zwischen zwei Reduzierungen der Ausgangsleistung
+          default: 15
+          selector:
+            number:
+              min: 5
+              max: 120
+              step: 5
+              unit_of_measurement: "s"
+
+        threshold_increase:
+          name: Schwelle für Erhöhung (%)
+          description: Ausgangsleistung wird erhöht wenn Bedarf um diesen % über aktuellem Wert liegt
+          default: 10
+          selector:
+            number:
+              min: 1
+              max: 50
+              step: 1
+              unit_of_measurement: "%"
+
+        threshold_decrease:
+          name: Schwelle für Reduzierung (%)
+          description: Ausgangsleistung wird reduziert wenn Bedarf um diesen % unter aktuellem Wert liegt
+          default: 2
+          selector:
+            number:
+              min: 1
+              max: 50
+              step: 1
+              unit_of_measurement: "%"
+
+        threshold_max_skip:
+          name: Schwelle für Max-Skip (%)
+          description: >-
+            Wenn bereits Max gesetzt und Bedarf weniger als diesen % darüber liegt,
+            wird nicht erneut getriggert
+          default: 10
+          selector:
+            number:
+              min: 1
+              max: 50
+              step: 1
+              unit_of_measurement: "%"
+
+        threshold_mode_skip:
+          name: Schwelle für Modus-Skip (%)
+          description: >-
+            Wenn Fully Charge Modus aktiv und Bedarf weniger als diesen % unter
+            aktuellem Wert liegt, wird nicht getriggert
+          default: 4
+          selector:
+            number:
+              min: 1
+              max: 50
+              step: 1
+              unit_of_measurement: "%"
+
+triggers:
+  - trigger: state
+    entity_id: !input sensor_min
+    id: Energy
+
+  - trigger: numeric_state
+    entity_id: !input battery_percentage
+    below: !input lowbat_threshold
+    id: LowBat
 
 variables:
   var_sensor_min: !input sensor_min
   var_sensor_avg: !input sensor_avg
   var_battery_percentage: !input battery_percentage
+  var_battery_capacity: !input battery_capacity
   var_output_value: !input output_value
-  var_time_period_enabled: !input time_period_enabled
   var_charging_mode: !input charging_mode
-  var_mode_lowbat: !input mode_lowbat
-  var_mode_normal: !input mode_normal
+  var_lowbat_threshold: !input lowbat_threshold
+  var_lowbat_output: !input lowbat_output
   var_min_power: !input min_power
   var_max_power: !input max_power
-  var_lowbat_threshold: !input lowbat_threshold
+  var_lowbat_recharge_threshold: !input lowbat_recharge_threshold
+  var_cooldown_increase: !input cooldown_increase
+  var_cooldown_decrease: !input cooldown_decrease
+  var_threshold_increase: !input threshold_increase
+  var_threshold_decrease: !input threshold_decrease
+  var_threshold_max_skip: !input threshold_max_skip
+  var_threshold_mode_skip: !input threshold_mode_skip
   var_gewichteter_wert: >-
-    {{ ((states(var_sensor_min) | float(0) * 2)
-    + (states(var_sensor_avg) | float(0))) / 3 }}
+    {{ (
+      (states(var_sensor_min) | float(0) * 2) +
+      states(var_sensor_avg) | float(0)
+    ) / 3 }}
 
-trigger:
-  - platform: time_pattern
-    seconds: !input update_interval
+conditions:
+  - condition: or
+    conditions:
 
-condition:
-  - condition: template
-    value_template: >-
-      {{ states(var_battery_percentage) not in ['unavailable', 'unknown'] }}
+      - alias: Energy-Trigger mit Guards
+        condition: and
+        conditions:
+          - condition: trigger
+            id: Energy
 
-action:
+          - alias: Gerät ist nicht unknown
+            condition: not
+            conditions:
+              - condition: state
+                entity_id: !input battery_capacity
+                state: unknown
+
+          - alias: Gerät ist nicht unavailable
+            condition: not
+            conditions:
+              - condition: state
+                entity_id: !input battery_capacity
+                state: unavailable
+
+          - alias: "Nicht: Max gesetzt und Bedarf nur geringfügig höher"
+            condition: not
+            conditions:
+              - condition: and
+                conditions:
+                  - condition: numeric_state
+                    entity_id: !input output_value
+                    above: 799
+                  - condition: template
+                    value_template: >-
+                      {{
+                        (states(var_output_value) | float(0) * (1 + var_threshold_max_skip / 100))
+                        <= states(var_sensor_min) | float(0)
+                      }}
+
+          - alias: "Nicht: Fully Charge Modus und Bedarf geringfügig kleiner"
+            condition: not
+            conditions:
+              - condition: and
+                conditions:
+                  - condition: state
+                    entity_id: !input charging_mode
+                    state: Fully Charge Then Discharge
+                  - condition: template
+                    value_template: >-
+                      {{
+                        states(var_output_value) | float(0)
+                        >= (states(var_sensor_min) | float(0) * (1 + var_threshold_mode_skip / 100))
+                      }}
+
+          - alias: Ist & Bedarfswerte vergleichen
+            condition: or
+            conditions:
+              - alias: Mehr Energie benötigt & Cooldown Erhöhung abgelaufen
+                condition: and
+                conditions:
+                  - condition: template
+                    value_template: >-
+                      {{
+                        (states(var_output_value) | float(0) * (1 + var_threshold_increase / 100))
+                        <= states(var_sensor_min) | float(0)
+                      }}
+                  - condition: template
+                    value_template: >-
+                      {{
+                        state_attr(this.entity_id, 'last_triggered') == None or
+                        (as_timestamp(now()) - as_timestamp(state_attr(this.entity_id, 'last_triggered')) | int(0))
+                        > var_cooldown_increase
+                      }}
+
+              - alias: Weniger Energie benötigt & Cooldown Reduzierung abgelaufen
+                condition: and
+                conditions:
+                  - condition: template
+                    value_template: >-
+                      {{
+                        states(var_output_value) | float(0)
+                        >= (states(var_sensor_min) | float(0) * (1 + var_threshold_decrease / 100))
+                      }}
+                  - condition: template
+                    value_template: >-
+                      {{
+                        state_attr(this.entity_id, 'last_triggered') == None or
+                        (as_timestamp(now()) - as_timestamp(state_attr(this.entity_id, 'last_triggered')) | int(0))
+                        > var_cooldown_decrease
+                      }}
+
+          - alias: Nicht Fully Charge Modus mit Batterie unter Schwelle
+            condition: not
+            conditions:
+              - condition: and
+                conditions:
+                  - condition: state
+                    entity_id: !input charging_mode
+                    state: Fully Charge Then Discharge
+                  - condition: numeric_state
+                    entity_id: !input battery_percentage
+                    below: !input lowbat_recharge_threshold
+
+      - alias: LowBat direkt durch
+        condition: trigger
+        id: LowBat
+
+actions:
   - choose:
 
-      # ─── LowBat Modus ───────────────────────────────────────────────────────
-      - conditions:
-          - condition: template
-            value_template: >-
-              {{ states(var_battery_percentage) | float(0) <= var_lowbat_threshold }}
-          - condition: template
-            value_template: >-
-              {{ states(var_charging_mode) != var_mode_lowbat }}
+      - alias: LowBat – Energiemodus umstellen
+        conditions:
+          - condition: trigger
+            id: LowBat
         sequence:
-          - alias: LowBat Modus aktivieren
-            action: select.select_option
+          - action: select.select_option
             data:
-              option: "{{ var_mode_lowbat }}"
+              option: Fully Charge Then Discharge
             target:
               entity_id: !input charging_mode
-          - alias: Minimale Leistung setzen
+          - action: number.set_value
+            data:
+              value: "{{ var_lowbat_output }}"
+            target:
+              entity_id: !input output_value
+          - action: switch.turn_off
+            target:
+              entity_id: !input time_period_enabled
+          - stop: Akku erschöpft
+
+      - alias: Normalbetrieb – Gewichteter Wert zwischen Min und Max
+        conditions:
+          - condition: template
+            value_template: >-
+              {{ var_gewichteter_wert > var_min_power and var_gewichteter_wert < var_max_power }}
+        sequence:
+          - alias: Gewichteten Wert einstellen
             action: number.set_value
+            data:
+              value: "{{ var_gewichteter_wert }}"
+            target:
+              entity_id: !input output_value
+          - alias: Switch und Modus korrigieren falls nötig
+            if:
+              - condition: or
+                conditions:
+                  - condition: state
+                    entity_id: !input time_period_enabled
+                    state: "off"
+                  - condition: state
+                    entity_id: !input charging_mode
+                    state: Fully Charge Then Discharge
+            then:
+              - action: switch.turn_on
+                target:
+                  entity_id: !input time_period_enabled
+              - action: select.select_option
+                data:
+                  option: Simultaneous Charging/Discharging
+                target:
+                  entity_id: !input charging_mode
+
+      - alias: Unter Minimum – Minimalwert setzen
+        conditions:
+          - condition: template
+            value_template: >-
+              {{ var_gewichteter_wert <= var_min_power }}
+          - condition: not
+            conditions:
+              - condition: state
+                entity_id: !input charging_mode
+                state: Fully Charge Then Discharge
+        sequence:
+          - action: number.set_value
             data:
               value: "{{ var_min_power }}"
             target:
               entity_id: !input output_value
 
-      # ─── Normalbetrieb ──────────────────────────────────────────────────────
-      - conditions:
+      - alias: Über Maximum – Maximalwert setzen
+        conditions:
           - condition: template
             value_template: >-
-              {{ states(var_battery_percentage) | float(0) > var_lowbat_threshold }}
+              {{ var_gewichteter_wert >= var_max_power }}
+          - condition: not
+            conditions:
+              - condition: numeric_state
+                entity_id: !input output_value
+                above: 799
         sequence:
-          - alias: Normalen Lademodus sicherstellen
+          - action: number.set_value
+            data:
+              value: "{{ var_max_power }}"
+            target:
+              entity_id: !input output_value
+          - alias: Switch und Modus korrigieren falls nötig
             if:
-              - condition: template
-                value_template: >-
-                  {{ states(var_charging_mode) != var_mode_normal }}
-            then:
-              - action: select.select_option
-                data:
-                  option: "{{ var_mode_normal }}"
-                target:
-                  entity_id: !input charging_mode
-
-          - alias: Zeitraum aktivieren falls nötig
-            if:
-              - condition: state
-                entity_id: !input time_period_enabled
-                state: "off"
+              - condition: or
+                conditions:
+                  - condition: state
+                    entity_id: !input time_period_enabled
+                    state: "off"
+                  - condition: state
+                    entity_id: !input charging_mode
+                    state: Fully Charge Then Discharge
             then:
               - action: switch.turn_on
                 target:
                   entity_id: !input time_period_enabled
-
-          - alias: Ausgangsleistung berechnen und setzen
-            action: number.set_value
-            data:
-              value: >-
-                {{ [[var_gewichteter_wert, var_min_power] | max, var_max_power] | min }}
-            target:
-              entity_id: !input output_value
+              - action: select.select_option
+                data:
+                  option: Simultaneous Charging/Discharging
+                target:
+                  entity_id: !input charging_mode
 
 mode: single
 max_exceeded: silent
